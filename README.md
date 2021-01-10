@@ -122,3 +122,10 @@ the library:
 * `LIBMEMLEAK_STATS_INTERVAL` : The (initial) time in seconds between printing memory leak stats. The default is 1 second. This value can be changed on the fly through `memleak_control` with the command `stats N` where `N` is a decimal value in seconds (or 0 to turn off printing of stats).
 * `LIBMEMLEAK_RESTART_MULTIPLIER` : The (initial) restart multiplier. The default is 5. This value can be changed on the fly through `memleak_control` with the command `restart M` where `M` is a decimal value. The restart multiplier must be at least 2. It causes a new interval to be automatically started every N * M seconds, where N is the stats print interval (see `LIBMEMLEAK_STATS_INTERVAL`).
 
+## Build
+
+    # git clone or download source code and extract it.
+    mkdir libmemleak-objdir && cd libmemleak-objdir
+    make -f ../libmemleak/Makefile src=../libmemleak
+
+## Test

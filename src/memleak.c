@@ -957,26 +957,29 @@ void memleak_stats()
   // Create or append 'memleak_backtraces' file.
   static int first_time = 1;
   FILE* fbacktraces = fopen("memleak_backtraces", first_time ? "w": "a");
-  if (first_time)
+  if (fbacktraces)
   {
-    fprintf(fbacktraces, "Application: \"%s\"\n", exename);
-    first_time = 0;
-  }
-  // Write all marked entries to the file.
-  for(int e = entries - 1; e >= 0; --e)
-  {
-    if (e && (e % 100) == 0)
+    if (first_time)
     {
-      fprintf(stdout, "%d backtraces to go (%3.1f %% cache hits)...\n", e, 100.0 * frame_cache_stats());
-      fflush(stdout);
+      fprintf(fbacktraces, "Application: \"%s\"\n", exename);
+      first_time = 0;
     }
-    BacktraceEntry* entry = &backtraces[e];
-    fprintf(fbacktraces, "Backtrace %d:\n", entry->backtrace_nr);
-    addr2line_print(fbacktraces, entry->ptr, entry->backtrace_size);
+    // Write all marked entries to the file.
+    for(int e = entries - 1; e >= 0; --e)
+    {
+      if (e && (e % 100) == 0)
+      {
+        fprintf(stdout, "%d backtraces to go (%3.1f %% cache hits)...\n", e, 100.0 * frame_cache_stats());
+        fflush(stdout);
+      }
+      BacktraceEntry* entry = &backtraces[e];
+      fprintf(fbacktraces, "Backtrace %d:\n", entry->backtrace_nr);
+      addr2line_print(fbacktraces, entry->ptr, entry->backtrace_size);
+    }
+    fclose(fbacktraces);
+    if (entries > 0)
+      fprintf(stdout, "libmemleak: Wrote %d new backtraces.\n", entries);
   }
-  fclose(fbacktraces);
-  if (entries > 0)
-    fprintf(stdout, "libmemleak: Wrote %d new backtraces.\n", entries);
   (*memleak_libc_free)(backtraces);
 
   // Done.
@@ -993,7 +996,12 @@ static __thread int inside_realloc = 0;
 // Set HEADER_OFFSET to sizeof(Header) rounded up to the nearest multiple of sizeof(void*).
 #define HEADER_OFFSET (((sizeof(Header) - 1) / sizeof(void*) + 1) * sizeof(void*))
 
-void* malloc(size_t size)
+#ifdef MEMLEAK_NOHOOK
+#define functionname(n)	(ml_##n)
+#else
+#define functionname(n)	(n)
+#endif
+void* functionname(malloc)(size_t size)
 {
   assert(!inside_realloc);
   void* allocation = (*memleak_libc_malloc)(size + HEADER_OFFSET);
@@ -1017,7 +1025,7 @@ void* malloc(size_t size)
   return allocation;
 }
 
-void* calloc(size_t nmemb, size_t size)
+void* functionname(calloc)(size_t nmemb, size_t size)
 {
   if (!nmemb || !size)
     return NULL;
@@ -1041,7 +1049,7 @@ void* calloc(size_t nmemb, size_t size)
   return allocation;
 }
 
-void* realloc(void* void_ptr, size_t size)
+void* functionname(realloc)(void* void_ptr, size_t size)
 {
   if (!void_ptr)
     return malloc(size);
@@ -1083,7 +1091,7 @@ void* realloc(void* void_ptr, size_t size)
   return allocation;
 }
 
-void free(void* void_ptr)
+void functionname(free)(void* void_ptr)
 {
   Debug(print_lock(); print("free("); print_ptr(void_ptr); print(")"); print_unlock());
   assert(!inside_realloc);
@@ -1098,7 +1106,7 @@ void free(void* void_ptr)
   (*memleak_libc_free)(tmp);
 }
 
-int posix_memalign(void** memptr, size_t alignment, size_t size)
+int functionname(posix_memalign)(void** memptr, size_t alignment, size_t size)
 {
   if (size == 0)
   {
