@@ -2,6 +2,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <pthread.h>
 
@@ -35,20 +36,31 @@ void *(*func_tab[]) (unsigned int arg, size_t size) =
 
 void * thread_func (void *arg)
 {
+	void *ptrs[1024] = { };
+	int pi = 0;
+
 	while (1)
 	{
 		void *ptr;
 		unsigned int arg;
 		size_t size;
 
-#define MIN_SIZE	16
-		size = rand() % 16 + MIN_SIZE;
-		arg = rand() & 0xffff;
+#define MIN_SIZE	64
+		size = rand() % 256 + MIN_SIZE;
+		arg = rand() & 0xfff;
 
 		ptr = call_func (arg, size);
+		memset (ptr, 0x55, size);
 
-		if (arg != 0x1111)
-			ml_free (ptr);
+		if (arg != 0x111)
+		{
+			if (ptrs[pi])
+				ml_free (ptrs[pi]);
+			ptrs[pi] = ptr;
+
+			pi ++;
+			pi %= sizeof (ptrs) / sizeof (ptrs[0]);
+		}
 	}
 
 	return NULL;
