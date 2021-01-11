@@ -61,6 +61,8 @@ void * thread_func (void *arg)
 			pi ++;
 			pi %= sizeof (ptrs) / sizeof (ptrs[0]);
 		}
+
+		usleep (50);
 	}
 
 	return NULL;
