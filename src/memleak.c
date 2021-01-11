@@ -307,7 +307,7 @@ void interval_print(Interval const* interval)
     printf("%4lu>(%4lu)", interval->end, interval->end - interval->start);
   else
     printf("now");
-  printf(": %5lu allocations (%6lu total, %4.1f%%), size %7lu; %6.2f allocations/s, %lu bytes/s\n",
+  printf(": %5zu allocations (%6lu total, %5.1f%%), size %7zu; %6.2f allocations/s, %lu bytes/s\n",
       interval->n, interval->total_n, (100.0 * interval->n / interval->total_n), interval->size,
       (double)interval->n / (interval->end - interval->start),
       interval->size / (interval->end - interval->start));
@@ -637,6 +637,23 @@ static pthread_t monitor_thread;
 
 static void init()
 {
+  const char *redir_out = getenv("LIBMEMLEAK_REDIROUT");
+  if (redir_out && redir_out[0])
+  {
+    int out;
+
+    fprintf (stderr, "redirect stdout/stderr to \"%s\"\n", redir_out);
+    out = open (redir_out, O_WRONLY | O_APPEND, 0644);
+    if (out >= 0)
+    {
+      dup2 (out, 1);
+      dup2 (out, 2);
+      fprintf (stderr, "stdout, stderr redirected to \"%s\"\n", redir_out);
+    }
+    else
+      fprintf (stderr, "open(\"%s\") failed. %s\n", redir_out, strerror(errno));
+  }
+
   // This is used in Header. Just check it here to be sure.
   assert(sizeof(intptr_t) == sizeof(void*));
   pagesize = sysconf(_SC_PAGESIZE);
@@ -913,7 +930,7 @@ void memleak_stats()
     totm /= 10;
     ++count2;
   }
-  fprintf(stdout, "%s: Now: %lu; \tBacktraces: %lu; \tallocations: %lu; \ttotal memory: %s bytes.\n",
+  fprintf(stdout, "%s: Now: %lu; \tBacktraces: %zu; \tallocations: %zu; \ttotal memory: %s bytes.\n",
       appname, now, local_stats.backtraces, local_stats.allocations, p);
 
   // Print all intervals and mark the backtrace entries as needing printing.
@@ -921,7 +938,7 @@ void memleak_stats()
   for(int i = 0; i < intervals; ++i)
   {
     helper[i].entry->need_printing = 1;
-    fprintf(stdout, " backtrace %d (value_n: %6.2f); ", helper[i].entry->backtrace_nr, helper[i].entry->value_n);
+    fprintf(stdout, " backtrace %d (value_n: %7.2f); ", helper[i].entry->backtrace_nr, helper[i].entry->value_n);
     interval_print(&helper[i].interval);
     if (helper[i].interval.end < oldest_interval_end)
       oldest_interval_end = helper[i].interval.end;
@@ -956,7 +973,12 @@ void memleak_stats()
 
   // Create or append 'memleak_backtraces' file.
   static int first_time = 1;
-  FILE* fbacktraces = fopen("memleak_backtraces", first_time ? "w": "a");
+  static char *fname;
+  if (!fname)
+    fname = getenv("LIBMEMLEAK_BACKTRACES");
+  if (!fname)
+    fname = "memleak_backtraces";
+  FILE* fbacktraces = fopen(fname, first_time ? "w": "a");
   if (fbacktraces)
   {
     if (first_time)
